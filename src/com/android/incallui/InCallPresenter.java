@@ -33,9 +33,10 @@ import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.view.Surface;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 
 import com.google.common.base.Preconditions;
-
 import com.android.incalluibind.ObjectFactory;
 
 import java.util.Collections;
@@ -71,6 +72,8 @@ public class InCallPresenter implements CallList.Listener, InCallPhoneListener {
     private final List<IncomingCallListener> mIncomingCallListeners = new CopyOnWriteArrayList<>();
     private final Set<InCallDetailsListener> mDetailsListeners = Collections.newSetFromMap(
             new ConcurrentHashMap<InCallDetailsListener, Boolean>(8, 0.9f, 1));
+    private final Set<CanAddCallListener> mCanAddCallListeners = Collections.newSetFromMap(
+            new ConcurrentHashMap<CanAddCallListener, Boolean>(8, 0.9f, 1));
     private final Set<InCallOrientationListener> mOrientationListeners = Collections.newSetFromMap(
             new ConcurrentHashMap<InCallOrientationListener, Boolean>(8, 0.9f, 1));
     private final Set<InCallEventListener> mInCallEventListeners = Collections.newSetFromMap(
@@ -101,6 +104,12 @@ public class InCallPresenter implements CallList.Listener, InCallPhoneListener {
         @Override
         public void onCallRemoved(Phone phone, android.telecom.Call call) {
             call.removeListener(mCallListener);
+        }
+        @Override
+        public void onCanAddCallChanged(Phone phone, boolean canAddCall) {
+            for (CanAddCallListener listener : mCanAddCallListeners) {
+                listener.onCanAddCallChanged(canAddCall);
+            }
         }
     };
 
@@ -472,6 +481,17 @@ public class InCallPresenter implements CallList.Listener, InCallPhoneListener {
     public void removeDetailsListener(InCallDetailsListener listener) {
         if (listener != null) {
             mDetailsListeners.remove(listener);
+        }
+    }
+
+    public void addCanAddCallListener(CanAddCallListener listener) {
+        Preconditions.checkNotNull(listener);
+        mCanAddCallListeners.add(listener);
+    }
+
+    public void removeCanAddCallListener(CanAddCallListener listener) {
+        if (listener != null) {
+            mCanAddCallListeners.remove(listener);
         }
     }
 
@@ -1192,6 +1212,21 @@ public class InCallPresenter implements CallList.Listener, InCallPhoneListener {
         }
     }
 
+    public void enableScreenTimeout(boolean v) {
+        Log.v(this, "enableScreenTimeout: value=" + v);
+        if (mInCallActivity == null) {
+            Log.e(this, "enableScreenTimeout: InCallActivity is null.");
+            return;
+        }
+
+        final Window window = mInCallActivity.getWindow();
+        if (v) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+    }
+
     /**
      * Returns the space available beside the call card.
      *
@@ -1271,6 +1306,10 @@ public class InCallPresenter implements CallList.Listener, InCallPhoneListener {
 
     public interface IncomingCallListener {
         public void onIncomingCall(InCallState oldState, InCallState newState, Call call);
+    }
+
+    public interface CanAddCallListener {
+        public void onCanAddCallChanged(boolean canAddCall);
     }
 
     public interface InCallDetailsListener {
